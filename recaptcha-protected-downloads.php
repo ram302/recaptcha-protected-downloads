@@ -12,6 +12,9 @@ Text Domain: rcpdl
 // prevent direct access
 defined('ABSPATH') || exit('Direct access not allowed.' . PHP_EOL);
 
+// The time, in seconds, that will determine when to reset the session.
+define("SESSION_TIME_LIMIT", 10800);
+
 class reCaptchaProtectedDownloads
 {
     /** Class instance **/
@@ -36,7 +39,32 @@ class reCaptchaProtectedDownloads
     public function setupGlobals()
     {
         global $reCaptchaProtectedDownloads, $reCaptchaProtectedDownloadsCore;
-
+        
+        // Implementing session.
+        session_start();
+        
+        // Set the recaptcha flag here; this will let us know when to ignore an empty re-captcha response.
+        if( !isset($_SESSION['reCaptchaSolvedSession']) ){
+          $_SESSION['reCaptchaSolvedSession'] = false;
+        }
+        
+        // The timeLimit will keep the latest time for session; after this timestamp, we'll destroy session and start a new one.
+        if( $_POST['reCaptchaSolvedStatus'] == false ){
+          $_SESSION['timeLimit'] = intval(time() + SESSION_TIME_LIMIT);
+        }
+        
+        // Whenever a link is clicked in the front-end, we come back here. We'll get the current timestamp to know if we should destroy and start a new session.
+        $timecheck = time();
+        
+        // The session control; where we'll know if we should destroy/start session. This happens after the timeLimit has been reached/passed.
+        if($timecheck > $_SESSION['timeLimit']){
+          unset($_SESSION['reCaptchaSolvedSession']);
+          unset($_SESSION['timeLimit']);
+          session_destroy();
+          session_start();
+          $_SESSION['reCaptchaSolvedSession'] = false;
+        }
+        
         $reCaptchaProtectedDownloads = (object) array(
             'public' => null,
             'secret' => null,
@@ -191,11 +219,11 @@ class reCaptchaProtectedDownloads
                 $reCaptchaProtectedDownloads->recaptcha = new \ReCaptcha\ReCaptcha($reCaptchaProtectedDownloads->secret);
             }
 
-            add_shortcode('recaptcha-protected-download', array($ins, 'shortcode'));
             add_action('wp_footer', array($ins, 'footerJS'));
             add_action('wp_footer', array($ins, 'recaptchaField'));
             add_action('wp_ajax_rcpdl_verify', array($ins, 'ajax'));
             add_action('wp_ajax_nopriv_rcpdl_verify', array($ins, 'ajax'));
+            add_filter( 'the_content', 'hash_links' );
 
             do_action('reCaptchaProtectedDownloads_ready', $reCaptchaProtectedDownloads);
         }
@@ -262,23 +290,6 @@ class reCaptchaProtectedDownloads
         }
 
         return true;
-    }
-
-    public static function shortcode($atts, $link='')
-    {
-        $ins = $GLOBALS['reCaptchaProtectedDownloadsCore'];
-
-        $hash = apply_filters('rcpdl_hash', md5($link), $link);
-
-        // add option if not there
-
-        if ( $ins->isNetworkActive() ) {
-            add_site_option("rcpdl_{$hash}", esc_attr(esc_url( $link )));
-        } else {
-            add_option("rcpdl_{$hash}", esc_attr(esc_url( $link )));
-        }
-
-        return apply_filters('rcpdl_link', "#rcpdl={$hash}", $link, $hash);
     }
 
     public static function footerJS()
@@ -379,14 +390,16 @@ class reCaptchaProtectedDownloads
         $recaptcha = isset($_REQUEST['recaptcha']) ? $_REQUEST['recaptcha'] : null;
 
         if ( !$recaptcha ) {
+          if( (!isset($_SESSION['reCaptchaSolvedSession'])) || (session_status == PHP_SESSION_ACTIVE && isset($_SESSION['reCaptchaSolvedSession']) && $_SESSION['reCaptchaSolvedSession'] === false) ){
             return wp_send_json(array(
                 'success' => false,
                 'message' => __('Error occured, missing or failed recaptcha test!', RCPDL_DOMAIN)
             ));
+          }
         }
 
         $resp = $reCaptchaProtectedDownloads->recaptcha->verify($recaptcha, $_SERVER['REMOTE_ADDR']);
-        if ($resp->isSuccess() || apply_filters('reCaptchaProtectedDownloads_fail_pass', false)) {
+        if ((isset($_SESSION['reCaptchaSolvedSession']) && $_SESSION['reCaptchaSolvedSession'] === true) || ($resp->isSuccess() || apply_filters('reCaptchaProtectedDownloads_fail_pass', false))) {
 
             $ins = $GLOBALS['reCaptchaProtectedDownloadsCore'];
 
@@ -400,6 +413,8 @@ class reCaptchaProtectedDownloads
 
             if ( $download_link ) {
                 do_action('rcpdl_ajax_success', $download_link, $hash);
+                
+                $_SESSION['reCaptchaSolvedSession'] = true;
 
                 return wp_send_json(array(
                     'success' => true,
@@ -422,3 +437,30 @@ class reCaptchaProtectedDownloads
 }
 
 add_action('plugins_loaded', array(reCaptchaProtectedDownloads::instance(), 'init'), 999);
+
+function hash_links( $content ) {
+  $regex = "/(http|https|ftp|ftps)\:\/\/[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,3}(\/\S*\.pdf)+/";
+  
+  preg_match_all($regex, $content, $link_matches);
+  
+  $content .= "<BR><BR><BR>";
+  
+  foreach($link_matches[0] as $match){
+    $content = str_replace($match, hashLink($match), $content);
+  }
+  
+  return $content;
+}
+
+function hashLink($link) {
+  $ins = $GLOBALS['reCaptchaProtectedDownloadsCore'];
+  $hash = apply_filters("rcpdl_hash", md5($link), $link);
+  
+  if ( $ins->isNetworkActive() ){
+    add_site_option("rcpdl_{$hash}", esc_attr(esc_url( $link )));
+  } else{
+    add_option("rcpdl_{$hash}", esc_attr(esc_url( $link )));
+  }
+  
+  return apply_filters('rcpdl_link', "#rcpdl={$hash}", $link, $hash);
+}

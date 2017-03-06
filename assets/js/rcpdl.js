@@ -13,7 +13,9 @@ var getHrefHash = function(href) {
 
 RCPDL.init = function($){
 	var links = $('a[href*="#rcpdl="]')
-	  , hash;
+	  , hash
+    , reCaptchaSolved = false
+    , modalValue = "";
 
 	if ( $('.rcpdl-modal').length == 0 ) {
 		$('<span class="rcpdl-modal-overlay" style="display:none"></span><div class="rcpdl-modal" style="display:none"><span class="close" title="close">&times;</span></div>').appendTo($('body'));
@@ -30,46 +32,56 @@ RCPDL.init = function($){
 		link.attr('data-rcpdl-hash', hash);
 		link.click(function(evt){
 			evt.preventDefault();
+      
+      // Control whether to prompt for reCAPTCHA. This is first set to false, but then set to true upon solving the reCAPTCHA for the first time in session.
+      if(reCaptchaSolved === false){
+        var modal = $('.rcpdl-modal').first()
+          , wwidth = jQuery(window).width()
+          , wheight = jQuery(window).height()
 
-			var modal = $('.rcpdl-modal').first()
-			  , wwidth = jQuery(window).width()
-			  , wheight = jQuery(window).height()
+        modal.css({
+            maxHeight: parseInt(wheight * 0.85), // 85% of window height to leave extra space (15% wh) on top and bottom
+        }).attr('data-rcpdl-hash', hash);
 
-			modal.css({
-			    maxHeight: parseInt(wheight * 0.85), // 85% of window height to leave extra space (15% wh) on top and bottom
-			}).attr('data-rcpdl-hash', hash);
+        var modal = $('.rcpdl-modal')
+          , mwidth = modal.width()
+          , mheight = modal.height()
 
-			var modal = $('.rcpdl-modal')
-			  , mwidth = modal.width()
-			  , mheight = modal.height()
+        modal.css({
+            right: (wwidth/2)-(mwidth/2),
+            bottom: ((wheight/2)-(mheight/2)) * 0.5
+        });
 
-			modal.css({
-			    right: (wwidth/2)-(mwidth/2),
-			    bottom: ((wheight/2)-(mheight/2)) * 0.5
-			});
+        modal.fadeIn({queue: false, duration: 200});
+        modal.animate({ bottom: (wheight/2)-(mheight/2) }, 200);
 
-			modal.fadeIn({queue: false, duration: 200});
-			modal.animate({ bottom: (wheight/2)-(mheight/2) }, 200);
+        modal.html(
+          $('#rcpdl-recaptcha').html()
+            .replace(/{{recaptcha}}/g, RCPDL.recaptchaHTML)
+        );
 
-			modal.html(
-				$('#rcpdl-recaptcha').html()
-					.replace(/{{recaptcha}}/g, RCPDL.recaptchaHTML)
-			);
+        $.getScript( RCPDL.recaptcha, function( data, textStatus, jqxhr ) {
+          $(window).trigger('resize');
+        });
 
-			$.getScript( RCPDL.recaptcha, function( data, textStatus, jqxhr ) {
-			  $(window).trigger('resize');
-			});
-
-			$('.rcpdl-modal-overlay').fadeIn(200);
+        $('.rcpdl-modal-overlay').fadeIn(200);
+      }
+      
+      // At this point, hash was set incorrectly, so I needed to reset it here.
+      hash = getHrefHash(link.prop('href'));
 
 			RCPDL.listener.listen(hash, function(){
 		  		var m = $('.rcpdl-modal').first()
 		  		  , rc = $('#g-recaptcha-response', m)
 		  		  , link = $('a[data-rcpdl-hash="'+hash+'"]');
-	            if ( rc.length == 0 )
+	            if ( rc.length == 0 && modalValue.length == 0 )
 	                return;
 
-	            if ( $.trim(rc.val()) ) {
+	            if ( $.trim(rc.val()) || $.trim(modalValue) ) {
+                  if(modalValue.length == 0){
+                      modalValue = rc.val();
+                  }
+                  
 	                RCPDL.listener.stop(hash);
 
 	                closeModal();
@@ -86,14 +98,19 @@ RCPDL.init = function($){
 	                	data: {
 	                		action: 'rcpdl_verify',
 	                		recaptcha: rc.val(),
-	                		hash: hash
+	                		hash: hash,
+                      reCaptchaSolvedStatus: reCaptchaSolved
 	                	},
 	                	success: function(res){
 	                		if ( res.download_link ) {
-	                			window.location.assign(res.download_link);
+                        // This variable will control whether to show reCAPTCHA prompt again in current session.
+                        reCaptchaSolved = true;
+	                			// Changed this to open in new tab/window.
+                        window.open(res.download_link);
 	                		} else {
-	                			alert(RCPDL.i18n.err_general);
-	                			link.click();
+                        // I couldn't work around the refresh. Ideally, I would have preferred to just re-prompt for reCAPTCHA solution.
+	                			alert("The session expired, you will need to solve a new reCAPTCHA challenge.");
+                        window.location.reload();
 	                		}
 
 	                		link.text(function(){
