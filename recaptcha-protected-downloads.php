@@ -63,6 +63,7 @@ class reCaptchaProtectedDownloads
           session_destroy();
           session_start();
           $_SESSION['reCaptchaSolvedSession'] = false;
+          $_SESSION['timeLimit'] = intval(time() + SESSION_TIME_LIMIT);
         }
         
         $reCaptchaProtectedDownloads = (object) array(

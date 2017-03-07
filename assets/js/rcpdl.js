@@ -78,8 +78,10 @@ RCPDL.init = function($){
 	                return;
 
 	            if ( $.trim(rc.val()) || $.trim(modalValue) ) {
-                  if(modalValue.length == 0){
+                  if(modalValue != null){
+                    if(modalValue.length == 0){
                       modalValue = rc.val();
+                    }
                   }
                   
 	                RCPDL.listener.stop(hash);
@@ -105,12 +107,17 @@ RCPDL.init = function($){
 	                		if ( res.download_link ) {
                         // This variable will control whether to show reCAPTCHA prompt again in current session.
                         reCaptchaSolved = true;
+                        modalValue = rc.val();
 	                			// Changed this to open in new tab/window.
                         window.open(res.download_link);
 	                		} else {
-                        // I couldn't work around the refresh. Ideally, I would have preferred to just re-prompt for reCAPTCHA solution.
 	                			alert("The session expired, you will need to solve a new reCAPTCHA challenge.");
-                        window.location.reload();
+                        
+                        reCaptchaSolved = false;
+                        modalValue = "";
+                        // I wipe out the callback function from listener.listen to stop the listener from automatically launching.
+                        RCPDL.listener.listen("", function(){});
+                        link.click();
 	                		}
 
 	                		link.text(function(){
