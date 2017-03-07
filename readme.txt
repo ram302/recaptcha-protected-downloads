@@ -13,43 +13,36 @@ Protect your downloads from bots and spiders with a shortcode and Google's no-ca
 
 == Description ==
 
-<p>Use the shortcode <code>[recaptcha-protected-download]</code> to wrap any direct download link that you'd like reCaptcha to process.</p>
+<p>Upon copying the plugin folder to /wp-content/plugins/, you may activate it by going to your plugins page. Once activated, click on the plugin's settings and enter the public/private reCAPTCHA keys obtained from Google.</p>
 
-<p><code>[recaptcha-protected-download]https://example.com/download.zip[/recaptcha-protected-download]</code></p>
+<p>My version of this plugin will convert any .pdf links, in href, to the hash, and apply the reCAPTCHA prompt to these links. Upon first loading the page, a session will be created, lasting for 3 hours, look at SESSION_TIME_LIMIT in recaptcha-protected-downloads.php if you'd like to change this. Once a reCAPTCHA is first solved, the other links will be clickable without a need to solve another reCAPTCHA, until the session is expired.</p>
 
-<strong>Example</strong>
+<strike><p>Use the shortcode <code>[recaptcha-protected-download]</code> to wrap any direct download link that you'd like reCaptcha to process.</p></strike>
+
+<strike><p><code>[recaptcha-protected-download]https://example.com/download.zip[/recaptcha-protected-download]</code></p></strike>
+
+<strong>Example</strong><strike>
 
 <p>Here's my <code>hello world</code> post HTML:</p>
 
 <pre>
-Hello! This page is dynamically generated with my plugin called Content Generator which you can download from &lt;a href="[recaptcha-protected-download]https://my-cdn.tld/static/content-generator.zip[/recaptcha-protected-download]"&gt;here&lt;/a&gt;.
-
-You can also download WordPress following &lt;a href="[recaptcha-protected-download]https://wordpress.org/latest.zip[/recaptcha-protected-download]"&gt;this URL&lt;/a&gt;
+<a href="https://www.irs.gov/pub/irs-pdf/fw4.pdf" target="_blank">IRS</a>
 </pre>
 
 <p>Which is parsed as follows:</p>
 
 <pre>
-Hello! This page is dynamically generated with my plugin called Content Generator which you can download from &lt;a href="#rcpdl=371bce9996c0afc711648c2c4f3d5c97"&gt;here&lt;/a&gt;.
-
-You can also download WordPress following &lt;a href="#rcpdl=7039e773658ed3c70d50e791ed4940fd"&gt;this URL&lt;/a&gt;
+<a href="#rcpdl=fc17b5220ce042f809ea732722215ee5" target="_blank">IRS</a>
 </pre>
 
 <strong>About</strong>
 
-<p>This plugin opts to generate fake links (anchors) controlled with JavaScript to open up a modal once clicked to opt users to complete the anti-spam test with <a href="https://github.com/google/recaptcha/">Google reCaptcha</a>.</p>
+<p>First, much thanks to elhardoum, as this is based entirely on his original code: https://github.com/elhardoum/recaptcha-protected-downloads. I needed to apply reCAPTCHA to my links as this pluging originally does, but also needed the following:</P>
 
-<p>Once a user successfully submits a test, an AJAX callback will then verify the response and parse the download.</p>
-
-<p><code>md5</code> is used to hash the download links and fetch them later once a user submits a test.</p>
-
-<p>You must provide your Google reCaptcha credentials which you can obtain from <a href="https://google.com/recaptcha/admin">this page</a></p>
-
-Once you activate the plugin, you should now navigate to "Settings" > "reCaptcha Downlaods" (or "Options" > "reCaptcha Downlaods" for network activated plugin) and add your Google reCaptcha credentials (public and private keys) which you can obtain from https://www.google.com/recaptcha/admin
-
-The development version of this plugin is hosted on Github, feel free to fork it, contribute and improve it, or start a new issue if you want to report something like an unusual bug. 
-
-Here's the Github repo: https://github.com/elhardoum/recaptcha-protected-downloads
+<ul>
+<li>Apply reCAPTCHA to PDF links without the need for shortcodes.</li>
+<li>Enforce reCAPTCHA once, start a session, and re-enforce reCAPTCHA upon session expiration.</li>
+</ul>
 
 Thank you!
 
@@ -66,6 +59,11 @@ Once you activate the plugin, you should now navigate to "Settings" > "reCaptcha
 1. reCaptcha popup after clicking download link
 
 == Changelog ==
+
+= 0.1.0 =
+* Customized to include the following: 
+- Apply reCAPTCHA to PDF links without the need for shortcodes.
+- Enforce reCAPTCHA once, start a session, and re-enforce reCAPTCHA upon session expiration.
 
 = 0.1 =
 * Initial stable release.
